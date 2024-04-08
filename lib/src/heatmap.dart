@@ -3,15 +3,6 @@ import 'package:flutter_calendar_heatmap/src/datetime.dart';
 import 'package:intl/intl.dart' as intl;
 
 class HeatMap extends StatelessWidget {
-  final double aspectRatio;
-  final Map<DateTime, int> data;
-
-  List<Color>? colors;
-  final TextStyle? textStyle;
-  final Color? strokeColor;
-  final double itemSize;
-  final double itemPadding;
-
   HeatMap({
     super.key,
     required this.data,
@@ -22,6 +13,15 @@ class HeatMap extends StatelessWidget {
     this.itemSize = 14,
     this.itemPadding = 4,
   });
+
+  final double aspectRatio;
+  final Map<DateTime, int> data;
+
+  List<Color>? colors;
+  final TextStyle? textStyle;
+  final Color? strokeColor;
+  final double itemSize;
+  final double itemPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -52,16 +52,6 @@ class HeatMap extends StatelessWidget {
 }
 
 class HeatMapPainter extends CustomPainter {
-  final Map<DateTime, int> data;
-  final List<Color> colors;
-  final TextStyle textStyle;
-  final Color strokeColor;
-  final double itemSize;
-  final double itemPadding;
-
-  static const int rows = 7;
-  List<bool> hasDrawnMonth = [];
-
   HeatMapPainter({
     required this.data,
     required this.colors,
@@ -69,26 +59,66 @@ class HeatMapPainter extends CustomPainter {
     required this.strokeColor,
     required this.itemSize,
     required this.itemPadding,
+    this.dayFormat = 'E',
+    this.startingDay = 0,
   });
+
+  final Map<DateTime, int> data;
+  final List<Color> colors;
+  final TextStyle textStyle;
+  final Color strokeColor;
+  final double itemSize;
+  final double itemPadding;
+  static const int rows = 7;
+  static const int totalColumns = 0;
+  final String dayFormat;
+
+  /// Accepts 0 - 6 (Sun - Sat). Invalid or missing will start on Sunday
+  final int startingDay;
+  List<bool> hasDrawnMonth = [];
 
   @override
   void paint(Canvas canvas, Size size) {
-    var paint = Paint();
-    int cols = _calculateColumns(size.width);
+    int cols =
+        (totalColumns > 0 ? totalColumns : _calculateColumns(size.width)) + 1;
     hasDrawnMonth = List.filled(cols, false);
-    int totalCount = cols * rows;
 
-    double heatMapWidth = _calculateHeatMapWidth(cols);
+    double heatMapWidth = _calculateHeatMapWidth(cols + 2);
     double startX = _calculateStartX(size.width, heatMapWidth);
 
     Paint strokePaint = createStrokePaint();
+    int totalItems = rows * (cols - 1);
+    // Draw heatmap cells
+    for (int i = 0; i < totalItems; i++) {
+      var dateAtIndex = _calculateDateForIndex((cols - 1), i);
 
-    for (int i = 0; i < rows * cols; i++) {
-      var dateAtIndex = _calculateDateForIndex(cols, i);
       var value = data[dateAtIndex] ?? 0;
+      var paint = Paint()
+        ..color = _getColorForValue(value)
+        ..style = PaintingStyle.fill;
 
-      paint.color = _getColorForValue(value);
       _drawCell(canvas, paint, i, startX, strokePaint, dateAtIndex);
+    }
+    final startingDayOfWeek =
+        (startingDay >= 0) && (startingDay <= 6) ? startingDay : 0;
+    // Draw day of week column
+    for (int i = 0; i < rows; i++) {
+      DateTime date = DateTime.now().add(
+          Duration(days: (7 - DateTime.now().day) + startingDayOfWeek + i));
+      TextSpan span = TextSpan(
+        text: intl.DateFormat(dayFormat).format(date),
+        style: textStyle,
+      );
+      TextPainter tp = TextPainter(
+        text: span,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      double xPos =
+          startX + (cols - 1) * (itemSize + itemPadding) + itemPadding;
+      double yPos = i * (itemSize + itemPadding) + (itemSize - tp.height) / 2;
+      tp.paint(canvas, Offset(xPos, yPos));
     }
   }
 
@@ -99,11 +129,15 @@ class HeatMapPainter extends CustomPainter {
     final rect = _calculateCellRect(startX, col, row);
 
     canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)), paint);
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      paint,
+    );
 
     if (dateAtIndex.isToday) {
       canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(4)), strokePaint);
+        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+        strokePaint,
+      );
     }
 
     if (dateAtIndex.day == 1 && !hasDrawnMonth[col]) {
@@ -118,10 +152,6 @@ class HeatMapPainter extends CustomPainter {
     return Rect.fromLTWH(left, top, itemSize, itemSize);
   }
 
-  int _calculateColumns(double width) {
-    return (width + itemPadding) ~/ (itemSize + itemPadding);
-  }
-
   double _calculateHeatMapWidth(int cols) {
     return cols * (itemSize + itemPadding) - itemPadding;
   }
@@ -134,11 +164,11 @@ class HeatMapPainter extends CustomPainter {
     return Paint()
       ..color = strokeColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = 3;
   }
 
   void _drawMonthText(Canvas canvas, DateTime date, int col, double startX) {
-    String monthText = intl.DateFormat('MMM').format(date);
+    String monthText = intl.DateFormat('MMM yy').format(date);
 
     TextPainter textPainter = TextPainter(
       text: TextSpan(text: monthText, style: textStyle),
@@ -149,7 +179,9 @@ class HeatMapPainter extends CustomPainter {
 
     double xPosition = _calculateTextXPosition(col, startX, textPainter.width);
     Offset textPosition = Offset(
-        xPosition, (rows * itemSize) + (rows * itemPadding) + itemPadding);
+      xPosition,
+      (rows * itemSize) + (rows * itemPadding) + itemPadding,
+    );
 
     textPainter.paint(canvas, textPosition);
   }
@@ -161,13 +193,16 @@ class HeatMapPainter extends CustomPainter {
   }
 
   DateTime _calculateDateForIndex(int cols, int index) {
-    DateTime startOfCurrentWeek =
-        DateTime.now().subtract(Duration(days: DateTime.now().weekday - 1));
+    DateTime startOfCurrentWeek = DateTime.now()
+        .subtract(Duration(days: DateTime.now().weekday))
+        .add(Duration(
+            days: (startingDay >= 0) && (startingDay <= 6) ? startingDay : 0));
     DateTime startDate =
         startOfCurrentWeek.subtract(Duration(days: (cols - 1) * 7));
 
     int weeksPassed = index ~/ 7;
     int dayOfWeek = index % 7;
+
     return startDate.add(Duration(days: weeksPassed * 7 + dayOfWeek)).midnight;
   }
 
@@ -177,6 +212,10 @@ class HeatMapPainter extends CustomPainter {
     } else {
       return colors[value % colors.length];
     }
+  }
+
+  int _calculateColumns(double width) {
+    return (width + itemPadding) ~/ (itemSize + itemPadding);
   }
 
   @override
