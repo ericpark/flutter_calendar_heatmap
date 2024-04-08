@@ -83,7 +83,7 @@ class HeatMapPainter extends CustomPainter {
         (totalColumns > 0 ? totalColumns : _calculateColumns(size.width)) + 1;
     hasDrawnMonth = List.filled(cols, false);
 
-    double heatMapWidth = _calculateHeatMapWidth(cols + 2);
+    double heatMapWidth = _calculateHeatMapWidth(cols + 1);
     double startX = _calculateStartX(size.width, heatMapWidth);
 
     Paint strokePaint = createStrokePaint();
