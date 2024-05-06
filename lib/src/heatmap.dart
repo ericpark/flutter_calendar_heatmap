@@ -104,7 +104,7 @@ class HeatMapPainter extends CustomPainter {
     // Draw day of week column
     for (int i = 0; i < rows; i++) {
       DateTime date = DateTime.now().add(
-          Duration(days: (7 - DateTime.now().day) + startingDayOfWeek + i));
+          Duration(days: (7 - DateTime.now().weekday) + startingDayOfWeek + i));
       TextSpan span = TextSpan(
         text: intl.DateFormat(dayFormat).format(date),
         style: textStyle,
